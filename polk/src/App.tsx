@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { Provider, useEffect, useState } from "react";
 import "./App.css";
 
 // polkadot js
@@ -8,13 +8,16 @@ interface Data {
   blockNumber: string;
   hash: string;
   chainName: string;
+  headers: string;
 }
 
 function App() {
+  const [headerSub, setHeaderSub] = useState<string>("");
   const [data, setData] = useState<Data>({
     blockNumber: "",
     hash: "",
     chainName: "",
+    headers: "",
   });
 
   // Construct
@@ -25,18 +28,25 @@ function App() {
   useEffect(() => {
     api
       .then(async (api) => {
+        await api.rpc.chain.subscribeNewHeads((header) => {
+          // Set the headerSub to the latest header
+          setHeaderSub(header.number.toHuman() as string);
+        });
+
         setData({
           blockNumber: api.genesisHash.toHex(),
           hash: api.consts.babe.epochDuration.toHuman() as string,
           chainName: (await api.rpc.system.chain()).toString(),
+          headers: headerSub,
         });
       })
       .catch((error) => {
         console.log(error);
       });
-  }, []);
+  }, [api, headerSub]);
 
   console.log(data);
+  console.log(headerSub);
 
   return (
     <>
@@ -61,6 +71,7 @@ function App() {
                     <td>{data.hash}</td>
                     <td>{data.blockNumber}</td>
                     <td>{data.chainName}</td>
+                    <td>{data.headers}</td>
                   </>
                 )
               }
