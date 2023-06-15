@@ -28,9 +28,14 @@ function App() {
   useEffect(() => {
     api
       .then(async (api) => {
-        await api.rpc.chain.subscribeNewHeads((header) => {
+        const unsubHeaders = await api.rpc.chain.subscribeNewHeads((header) => {
           // Set the headerSub to the latest header
           setHeaderSub(header.number.toHuman() as string);
+
+          if (headerSub.length > 10) {
+            // Unsubscribe from the new headers
+            unsubHeaders();
+          }
         });
 
         setData({
