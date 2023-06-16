@@ -30,16 +30,16 @@ async function setAccountBalance(
   keyring.addFromUri("//Alice");
   const sudoPair = keyring.getPair(sudoKey.toString());
   const unsub = await api.tx.sudo
-    .sudo(api.tx.balances.setBalanceDeprecated(account.address, balance, 0))
-    .signAndSend(sudoPair, ({ status }) => {
+    .sudo(api.tx.balances.setBalanceDeprecated(account.address, balance, 1))
+    .signAndSend(sudoPair, async ({ status }) => {
       if (status.isInBlock) {
-        console.log(`Completed at block hash #${status.asInBlock}`);
+        const blockHash = await api.rpc.chain.getBlockHash(status.asInBlock);
+        console.log(`Completed at block hash #${blockHash}`);
+        unsub();
       } else {
         console.log(`Current status: ${status.type}`);
       }
     });
-
-  unsub();
 }
 
 // takes in the name of the account and returns the account object
