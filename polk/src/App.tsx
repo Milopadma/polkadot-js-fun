@@ -11,6 +11,7 @@ interface Data {
   headers: string;
 }
 
+// takes in the name of the account and returns the account object
 async function getAccount(name: string) {
   const keyring = new Keyring({ type: "sr25519" });
   try {
@@ -21,6 +22,7 @@ async function getAccount(name: string) {
   }
 }
 
+// takes in the recipient, sender, and amount
 async function transfer(to: any, from: any, amount: number) {
   const api = await ApiPromise.create({
     provider: new WsProvider("wss://rpc.polkadot.io"),
@@ -63,15 +65,17 @@ function App() {
 
   // handle transfer function that takes in the two input fields and the amount
   const handleTransfer = () => {
-    const recipient = document.getElementById("recipient") as HTMLInputElement;
-    const sender = document.getElementById("sender") as HTMLInputElement;
+    const recipientText = document.getElementById(
+      "recipient"
+    ) as HTMLInputElement;
+    const senderText = document.getElementById("sender") as HTMLInputElement;
 
     const amount = document.querySelector(
       "input[type=number]"
     ) as HTMLInputElement;
 
-    getAccount(recipient.value).then((recipientAccount) => {
-      getAccount(sender.value).then((senderAccount) => {
+    getAccount(recipientText.value).then((recipientAccount) => {
+      getAccount(senderText.value).then((senderAccount) => {
         transfer(recipientAccount, senderAccount, Number(amount.value));
       });
     });
