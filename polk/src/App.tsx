@@ -1,4 +1,4 @@
-import { Key, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import "./App.css";
 
 // polkadot js
@@ -12,11 +12,11 @@ interface Data {
   headers: string;
 }
 
-async function setAccountBalance(account: any, balance: number) {
-  // const wsProvider = new WsProvider("wss://rpc.polkadot.io");
-  const wsProvider = new WsProvider("ws://localhost:9944");
-  const api = await ApiPromise.create({ provider: wsProvider });
-
+async function setAccountBalance(
+  api: ApiPromise,
+  account: unknown,
+  balance: number
+) {
   console.log(account);
   console.log(api);
   console.log(api.query);
@@ -29,7 +29,7 @@ async function setAccountBalance(account: any, balance: number) {
   const sudoPair = keyring.getPair(sudoKey.toString());
   const unsub = await api.tx.sudo
     .sudo(api.tx.balances.setBalanceDeprecated(account, balance, 0))
-    .signAndSend(sudoPair, ({ status }: any) => {
+    .signAndSend(sudoPair, ({ status }) => {
       if (status.isInBlock) {
         console.log(`Completed at block hash #${status.asInBlock}`);
       } else {
@@ -58,27 +58,24 @@ async function getBalance(accountName: string) {
   // get the account object
   const account = await getAccount(accountName);
 
-  const {
-    nonce,
-    data: { free: balance },
-  } = await api.query.system.account(account.address);
+  if (!account) {
+    throw new Error("Account not found");
+  }
 
-  return balance.toHuman();
+  const {
+    data: { free },
+  } = (await api.query.system.account(account.address)) as any;
+
+  return free.toHuman();
 }
 
 // takes in the recipient, sender, and amount
-async function transfer(to: any, from: any, amount: number) {
-  const api = await ApiPromise.create({
-    // provider: new WsProvider("wss://rpc.polkadot.io"),
-    provider: new WsProvider("ws://localhost:9944"),
-
-    types: {
-      Address: "AccountId",
-      LookupSource: "AccountId",
-      AccountInfo: "AccountInfoWithTripleRefCount",
-    },
-  });
-
+async function transfer(
+  api: ApiPromise,
+  to: { address: string },
+  from: { address: string },
+  amount: number
+) {
   const unsub = await api.tx.balances
     .transfer(to.address, amount)
     .signAndSend(from, ({ status }: SubmittableResultValue) => {
@@ -106,33 +103,16 @@ function App() {
     headers: "",
   });
 
-  // Construct
-  // const wsProvider = new WsProvider("wss://rpc.polkadot.io");
-  const wsProvider = new WsProvider("ws://localhost:9944");
-  const api = ApiPromise.create({ provider: wsProvider });
-
-  // handle transfer function that takes in the two input fields and the amount
-  const handleTransfer = () => {
-    const recipientText = document.getElementById(
-      "recipient"
-    ) as HTMLInputElement;
-    const senderText = document.getElementById("sender") as HTMLInputElement;
-
-    const amount = document.querySelector(
-      "input[type=number]"
-    ) as HTMLInputElement;
-
-    getAccount(recipientText.value).then((recipientAccount) => {
-      getAccount(senderText.value).then((senderAccount) => {
-        transfer(recipientAccount, senderAccount, Number(amount.value));
-      });
-    });
-  };
+  const [api, setApi] = useState<ApiPromise | null>(null);
 
   // Do something after the component is rendered, but only once
   useEffect(() => {
-    api
-      .then(async (api) => {
+    const connectToApi = async () => {
+      try {
+        const wsProvider = new WsProvider("ws://localhost:9944");
+        const api = await ApiPromise.create({ provider: wsProvider });
+        setApi(api);
+
         const unsubHeaders = await api.rpc.chain.subscribeNewHeads((header) => {
           // Set the headerSub to the latest header
           setHeaderSub(header.number.toHuman() as string);
@@ -150,10 +130,12 @@ function App() {
           chainName: (await api.rpc.system.chain()).toString(),
           headers: headerSub,
         });
-      })
-      .catch((error) => {
-        console.log(error);
-      });
+      } catch (error) {
+        console.error("Error connecting to the node:", error);
+      }
+    };
+
+    connectToApi();
 
     // get the balance of Alice
     getBalance("Alice").then((balance) => {
@@ -164,7 +146,25 @@ function App() {
     getBalance("Bob").then((balance) => {
       setBobBalance(balance);
     });
-  }, [headerSub]);
+  }, []);
+
+  // handle transfer function that takes in the two input fields and the amount
+  const handleTransfer = () => {
+    const recipientText = document.getElementById(
+      "recipient"
+    ) as HTMLInputElement;
+    const senderText = document.getElementById("sender") as HTMLInputElement;
+
+    const amount = document.querySelector(
+      "input[type=number]"
+    ) as HTMLInputElement;
+
+    getAccount(recipientText.value).then((recipientAccount) => {
+      getAccount(senderText.value).then((senderAccount) => {
+        transfer(api, recipientAccount, senderAccount, Number(amount.value));
+      });
+    });
+  };
 
   // console.log(data);
   // console.log(headerSub);
@@ -180,7 +180,7 @@ function App() {
 
     getAccount(recipientText.value).then((recipientAccount) => {
       console.log(recipientAccount);
-      setAccountBalance(recipientAccount, Number(amount.value));
+      setAccountBalance(api, recipientAccount, Number(amount.value));
     });
   }
 
