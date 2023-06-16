@@ -1,8 +1,9 @@
-import { useEffect, useState } from "react";
+import { Key, useEffect, useState } from "react";
 import "./App.css";
 
 // polkadot js
 import { ApiPromise, WsProvider, Keyring } from "@polkadot/api";
+import { SubmittableResultValue } from "@polkadot/api/types";
 
 interface Data {
   blockNumber: string;
@@ -50,6 +51,21 @@ async function getAccount(name: string) {
   }
 }
 
+async function getBalance(accountName: string) {
+  // const wsProvider = new WsProvider("wss://rpc.polkadot.io");
+  const wsProvider = new WsProvider("ws://localhost:9944");
+  const api = await ApiPromise.create({ provider: wsProvider });
+  // get the account object
+  const account = await getAccount(accountName);
+
+  const {
+    nonce,
+    data: { free: balance },
+  } = await api.query.system.account(account.address);
+
+  return balance.toHuman();
+}
+
 // takes in the recipient, sender, and amount
 async function transfer(to: any, from: any, amount: number) {
   const api = await ApiPromise.create({
@@ -65,7 +81,7 @@ async function transfer(to: any, from: any, amount: number) {
 
   const unsub = await api.tx.balances
     .transfer(to.address, amount)
-    .signAndSend(from, ({ status }: any) => {
+    .signAndSend(from, ({ status }: SubmittableResultValue) => {
       if (status.isInBlock) {
         console.log(
           `Successful transfer of ${amount} with hash`,
@@ -80,6 +96,8 @@ async function transfer(to: any, from: any, amount: number) {
 }
 
 function App() {
+  const [AliceBalance, setAliceBalance] = useState<string>("");
+  const [BobBalance, setBobBalance] = useState<string>("");
   const [headerSub, setHeaderSub] = useState<string>("");
   const [data, setData] = useState<Data>({
     blockNumber: "",
@@ -136,6 +154,16 @@ function App() {
       .catch((error) => {
         console.log(error);
       });
+
+    // get the balance of Alice
+    getBalance("Alice").then((balance) => {
+      setAliceBalance(balance);
+    });
+
+    // get the balance of Bob
+    getBalance("Bob").then((balance) => {
+      setBobBalance(balance);
+    });
   }, [headerSub]);
 
   // console.log(data);
@@ -198,8 +226,8 @@ function App() {
         <main className="mt-12 mb-12">
           {/* Two Labels side by side to display the balance of Alice on the left and Bob on the right */}
           <div>
-            <label className="mr-12">Alice Balance: </label>
-            <label>Bob Balance: </label>
+            <label className="mr-12">Alice balance: {AliceBalance}</label>
+            <label>Bob Balance: {BobBalance}</label>
           </div>
         </main>
         <hr />
