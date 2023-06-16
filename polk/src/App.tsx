@@ -4,6 +4,7 @@ import "./App.css";
 // polkadot js
 import { ApiPromise, WsProvider, Keyring } from "@polkadot/api";
 import { SubmittableResultValue } from "@polkadot/api/types";
+import { KeyringPair } from "@polkadot/keyring/types";
 
 interface Data {
   blockNumber: string;
@@ -14,10 +15,11 @@ interface Data {
 
 async function setAccountBalance(
   api: ApiPromise,
-  account: unknown,
+  account: KeyringPair,
   balance: number
 ) {
   console.log(account);
+  console.log(account.address);
   console.log(api);
   console.log(api.query);
   console.log(api.query.sudo);
@@ -28,7 +30,7 @@ async function setAccountBalance(
   keyring.addFromUri("//Alice");
   const sudoPair = keyring.getPair(sudoKey.toString());
   const unsub = await api.tx.sudo
-    .sudo(api.tx.balances.setBalanceDeprecated(account, balance, 0))
+    .sudo(api.tx.balances.setBalanceDeprecated(account.address, balance, 0))
     .signAndSend(sudoPair, ({ status }) => {
       if (status.isInBlock) {
         console.log(`Completed at block hash #${status.asInBlock}`);
@@ -178,7 +180,11 @@ function App() {
 
     getAccount(recipientText.value).then((recipientAccount) => {
       console.log(recipientAccount);
-      setAccountBalance(api, recipientAccount, Number(amount.value));
+      if (recipientAccount) {
+        setAccountBalance(api, recipientAccount, Number(amount.value));
+      } else {
+        console.log("Account not found");
+      }
     });
   }
 
