@@ -70,12 +70,7 @@ async function getBalance(accountName: string) {
 }
 
 // takes in the recipient, sender, and amount
-async function transfer(
-  api: ApiPromise,
-  to: { address: string },
-  from: { address: string },
-  amount: number
-) {
+async function transfer(api: ApiPromise, to: any, from: any, amount: number) {
   const unsub = await api.tx.balances
     .transfer(to.address, amount)
     .signAndSend(from, ({ status }: SubmittableResultValue) => {
@@ -103,7 +98,8 @@ function App() {
     headers: "",
   });
 
-  const [api, setApi] = useState<ApiPromise | null>(null);
+  //! this is so dangerous lmao
+  const [api, setApi] = useState<ApiPromise>({} as unknown as ApiPromise);
 
   // Do something after the component is rendered, but only once
   useEffect(() => {
@@ -161,7 +157,9 @@ function App() {
 
     getAccount(recipientText.value).then((recipientAccount) => {
       getAccount(senderText.value).then((senderAccount) => {
-        transfer(api, recipientAccount, senderAccount, Number(amount.value));
+        if (recipientAccount && senderAccount) {
+          transfer(api, recipientAccount, senderAccount, Number(amount.value));
+        }
       });
     });
   };
