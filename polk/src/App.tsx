@@ -1,14 +1,51 @@
-import { Provider, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import "./App.css";
 
 // polkadot js
-import { ApiPromise, WsProvider } from "@polkadot/api";
+import { ApiPromise, WsProvider, Keyring } from "@polkadot/api";
 
 interface Data {
   blockNumber: string;
   hash: string;
   chainName: string;
   headers: string;
+}
+
+async function getAccount(name: string) {
+  const keyring = new Keyring({ type: "sr25519" });
+  try {
+    const account = keyring.addFromUri("//" + name);
+    return account;
+  } catch (error) {
+    console.error("Error adding account:", error);
+  }
+}
+
+async function transfer(to: any, from: any, amount: number) {
+  const api = await ApiPromise.create({
+    provider: new WsProvider("wss://rpc.polkadot.io"),
+
+    types: {
+      Address: "AccountId",
+      LookupSource: "AccountId",
+      AccountInfo: "AccountInfoWithTripleRefCount",
+    },
+  });
+
+  const unsub = await api.tx.balances
+    .transfer(to.address, amount)
+    .signAndSend(from, ({ status }: any) => {
+      if (status.isInBlock) {
+        console.log(
+          `Successful transfer of ${amount} with hash`,
+          status.asInBlock.toHex()
+        );
+      } else {
+        console.log("Status of transfer: ", status.type);
+      }
+    });
+
+  unsub();
 }
 
 function App() {
@@ -23,6 +60,22 @@ function App() {
   // Construct
   const wsProvider = new WsProvider("wss://rpc.polkadot.io");
   const api = ApiPromise.create({ provider: wsProvider });
+
+  // handle transfer function that takes in the two input fields and the amount
+  const handleTransfer = () => {
+    const recipient = document.getElementById("recipient") as HTMLInputElement;
+    const sender = document.getElementById("sender") as HTMLInputElement;
+
+    const amount = document.querySelector(
+      "input[type=number]"
+    ) as HTMLInputElement;
+
+    getAccount(recipient.value).then((recipientAccount) => {
+      getAccount(sender.value).then((senderAccount) => {
+        transfer(recipientAccount, senderAccount, Number(amount.value));
+      });
+    });
+  };
 
   // Do something after the component is rendered, but only once
   useEffect(() => {
@@ -57,39 +110,62 @@ function App() {
     <>
       <div>
         <header className="font-black text-3xl">Polkadot.JS</header>
-        {/* Give me a table consisting of the data fetched from the Polkadot Nodes */}
-        <table>
-          <thead>
-            <tr>
-              {/* dynamically display headers based on the type Data */}
-              {Object.keys(data).map((key) => (
-                <th key={key}>{key}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              {
-                // If data is not empty, then display the data
-                data && (
-                  <>
-                    <td>{data.hash}</td>
-                    <td>{data.blockNumber}</td>
-                    <td>{data.chainName}</td>
-                    <td>{data.headers}</td>
-                  </>
-                )
-              }
-              {
-                // If data is empty, then display loading
-                !data && (
-                  // Else, display loading
-                  <td>Loading...</td>
-                )
-              }
-            </tr>
-          </tbody>
-        </table>
+        <main>
+          <table>
+            <thead>
+              <tr>
+                {/* dynamically display headers based on the type Data */}
+                {Object.keys(data).map((key) => (
+                  <th key={key}>{key}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                {
+                  // If data is not empty, then display the data
+                  data && (
+                    <>
+                      <td>{data.hash}</td>
+                      <td>{data.blockNumber}</td>
+                      <td>{data.chainName}</td>
+                      <td>{data.headers}</td>
+                    </>
+                  )
+                }
+                {
+                  // If data is empty, then display loading
+                  !data && (
+                    // Else, display loading
+                    <td>Loading...</td>
+                  )
+                }
+              </tr>
+            </tbody>
+          </table>
+        </main>
+        <main>
+          {/* two input fields, consisting of recipient and sender names, and an amount */}
+          <input id="recipient" type="text" placeholder="Recipient" />
+          <input id="sender" type="text" placeholder="Sender" />
+          <input type="number" placeholder="Amount" />
+          <button
+            onClick={() => {
+              getAccount("Alice").then((account) => {
+                console.log(account);
+              });
+            }}
+          >
+            Get Account
+          </button>
+          <button
+            onClick={() => {
+              handleTransfer();
+            }}
+          >
+            Transfer
+          </button>
+        </main>
       </div>
     </>
   );
