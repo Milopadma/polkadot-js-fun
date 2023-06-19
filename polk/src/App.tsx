@@ -16,7 +16,7 @@ interface Data {
 async function setAccountBalance(
   api: ApiPromise,
   account: KeyringPair,
-  balance: number
+  amount: number
 ) {
   console.log(account);
   console.log(account.address);
@@ -24,17 +24,22 @@ async function setAccountBalance(
   console.log(api.query);
   console.log(api.query.sudo);
   const sudoKey = await api.query.sudo.key();
+  console.log(amount);
   console.log(sudoKey.toString());
   const keyring = new Keyring({ type: "sr25519", ss58Format: 2 });
   // add the alice account to the keyring so that we can sign the transaction
   keyring.addFromUri("//Alice");
   const sudoPair = keyring.getPair(sudoKey.toString());
   const unsub = await api.tx.sudo
-    .sudo(api.tx.balances.setBalanceDeprecated(account.address, balance, 1))
+    .sudo(api.tx.balances.setBalanceDeprecated(account.address, amount, 0))
     .signAndSend(sudoPair, async ({ status }) => {
       if (status.isInBlock) {
         const blockHash = await api.rpc.chain.getBlockHash(status.asInBlock);
         console.log(`Completed at block hash #${blockHash}`);
+        // get the balance of Alice
+        getBalance("Alice").then((balance) => {
+          console.log(balance);
+        });
         unsub();
       } else {
         console.log(`Current status: ${status.type}`);
@@ -42,15 +47,21 @@ async function setAccountBalance(
     });
 }
 
+type AccountKeyring = {
+  account: KeyringPair;
+  keyring: Keyring;
+};
+
 // takes in the name of the account and returns the account object
-async function getAccount(name: string) {
+async function getAccount(name: string): Promise<AccountKeyring> {
   const keyring = new Keyring({ type: "sr25519" });
   try {
     const account = keyring.addFromUri("//" + name);
-    return account;
+    return { account, keyring };
   } catch (error) {
     console.error("Error adding account:", error);
   }
+  return { account: {} as KeyringPair, keyring: {} as Keyring };
 }
 
 async function getBalance(accountName: string) {
@@ -58,7 +69,7 @@ async function getBalance(accountName: string) {
   const wsProvider = new WsProvider("ws://localhost:9944");
   const api = await ApiPromise.create({ provider: wsProvider });
   // get the account object
-  const account = await getAccount(accountName);
+  const { account } = await getAccount(accountName);
 
   if (!account) {
     throw new Error("Account not found");
@@ -174,16 +185,14 @@ function App() {
       "account"
     ) as HTMLInputElement;
 
-    const amount = document.querySelector(
-      "input[type=number]"
-    ) as HTMLInputElement;
+    const amount = document.getElementById("balance") as HTMLInputElement;
 
-    getAccount(recipientText.value).then((recipientAccount) => {
-      console.log(recipientAccount);
-      if (recipientAccount) {
-        setAccountBalance(api, recipientAccount, Number(amount.value));
+    // get the account object from the name and call the setAccountBalance function
+    getAccount(recipientText.value).then(({ account, keyring }) => {
+      if (account) {
+        setAccountBalance(api, account, Number(amount.value));
       } else {
-        console.log("Account not found");
+        console.error("Account not found");
       }
     });
   }
