@@ -5,6 +5,8 @@ import "./App.css";
 import { ApiPromise, WsProvider, Keyring } from "@polkadot/api";
 import { SubmittableResultValue } from "@polkadot/api/types";
 import { KeyringPair } from "@polkadot/keyring/types";
+import BalanceView from "./BalanceView.tsx";
+import { getBalance, getAccount } from "./utils";
 
 interface Data {
   blockNumber: string;
@@ -17,7 +19,7 @@ async function setAccountBalance(
   api: ApiPromise,
   account: KeyringPair,
   amount: number
-) {
+): Promise<boolean> {
   console.log(account);
   console.log(account.address);
   console.log(api);
@@ -37,7 +39,7 @@ async function setAccountBalance(
         const blockHash = await api.rpc.chain.getBlockHash(status.asInBlock);
         console.log(`Completed at block hash #${blockHash}`);
         // get the balance of Alice
-        getBalance("Alice").then((balance) => {
+        getBalance(api, "Alice").then((balance) => {
           console.log(balance);
         });
         unsub();
@@ -45,47 +47,14 @@ async function setAccountBalance(
         console.log(`Current status: ${status.type}`);
       }
     });
-}
 
-type AccountKeyring = {
-  account: KeyringPair;
-  keyring: Keyring;
-};
-
-// takes in the name of the account and returns the account object
-async function getAccount(name: string): Promise<AccountKeyring> {
-  const keyring = new Keyring({ type: "sr25519" });
-  try {
-    const account = keyring.addFromUri("//" + name);
-    return { account, keyring };
-  } catch (error) {
-    console.error("Error adding account:", error);
-  }
-  return { account: {} as KeyringPair, keyring: {} as Keyring };
-}
-
-async function getBalance(accountName: string) {
-  // const wsProvider = new WsProvider("wss://rpc.polkadot.io");
-  const wsProvider = new WsProvider("ws://localhost:9944");
-  const api = await ApiPromise.create({ provider: wsProvider });
-  // get the account object
-  const { account } = await getAccount(accountName);
-
-  if (!account) {
-    throw new Error("Account not found");
-  }
-
-  const {
-    data: { free },
-  } = (await api.query.system.account(account.address)) as any;
-
-  return free.toHuman();
+  return true;
 }
 
 // takes in the recipient, sender, and amount
 async function transfer(api: ApiPromise, to: any, from: any, amount: number) {
   const unsub = await api.tx.balances
-    .transfer(to.address, amount)
+    .transfer(to.address, BigInt(amount))
     .signAndSend(from, ({ status }: SubmittableResultValue) => {
       if (status.isInBlock) {
         console.log(
@@ -100,8 +69,7 @@ async function transfer(api: ApiPromise, to: any, from: any, amount: number) {
 }
 
 function App() {
-  const [AliceBalance, setAliceBalance] = useState<string>("");
-  const [BobBalance, setBobBalance] = useState<string>("");
+  const [isLoading, setIsLoading] = useState<boolean>(false);
   const [headerSub, setHeaderSub] = useState<string>("");
   const [data, setData] = useState<Data>({
     blockNumber: "",
@@ -144,16 +112,6 @@ function App() {
     };
 
     connectToApi();
-
-    // get the balance of Alice
-    getBalance("Alice").then((balance) => {
-      setAliceBalance(balance);
-    });
-
-    // get the balance of Bob
-    getBalance("Bob").then((balance) => {
-      setBobBalance(balance);
-    });
   }, []);
 
   // handle transfer function that takes in the two input fields and the amount
@@ -195,10 +153,19 @@ function App() {
 
     const amount = document.getElementById("balance") as HTMLInputElement;
 
+    setIsLoading(true);
+
     // get the account object from the name and call the setAccountBalance function
-    getAccount(recipientText.value).then(({ account, keyring }) => {
+    getAccount(recipientText.value).then(async ({ account }) => {
       if (account) {
-        setAccountBalance(api, account, Number(amount.value));
+        const response = await setAccountBalance(
+          api,
+          account,
+          Number(amount.value)
+        );
+        if (response !== undefined) {
+          setIsLoading(false);
+        }
       } else {
         console.error("Account not found");
       }
@@ -245,11 +212,7 @@ function App() {
         </main>
         <hr />
         <main className="mt-12 mb-12">
-          {/* Two Labels side by side to display the balance of Alice on the left and Bob on the right */}
-          <div>
-            <label className="mr-12">Alice balance: {AliceBalance}</label>
-            <label>Bob Balance: {BobBalance}</label>
-          </div>
+          <BalanceView api={api}></BalanceView>
         </main>
         <hr />
         <main className="mt-12 mb-12">
@@ -296,7 +259,7 @@ function App() {
               setBalanceHandler();
             }}
           >
-            Set Balance
+            {isLoading ? "Loading..." : "Set Balance"}
           </button>
         </main>
       </div>
