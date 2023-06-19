@@ -92,12 +92,11 @@ async function transfer(api: ApiPromise, to: any, from: any, amount: number) {
           `Successful transfer of ${amount} with hash`,
           status.asInBlock.toHex()
         );
+        unsub();
       } else {
         console.log("Status of transfer: ", status.type);
       }
     });
-
-  unsub();
 }
 
 function App() {
@@ -168,13 +167,22 @@ function App() {
       "input[type=number]"
     ) as HTMLInputElement;
 
-    getAccount(recipientText.value).then((recipientAccount) => {
-      getAccount(senderText.value).then((senderAccount) => {
-        if (recipientAccount && senderAccount) {
-          transfer(api, recipientAccount, senderAccount, Number(amount.value));
-        }
-      });
-    });
+    getAccount(recipientText.value).then(
+      ({ account: recipientAccount, keyring: recipientKeyring }) => {
+        getAccount(senderText.value).then(
+          ({ account: senderAccount, keyring: senderKeyring }) => {
+            if (recipientAccount && senderAccount) {
+              transfer(
+                api,
+                recipientAccount,
+                senderAccount,
+                Number(amount.value)
+              );
+            }
+          }
+        );
+      }
+    );
   };
 
   // console.log(data);
@@ -272,14 +280,16 @@ function App() {
           <input
             id="account"
             type="text"
+            contentEditable={true}
             placeholder="Account"
             value={"Alice"}
           />
           <input
             id="balance"
             type="number"
+            contentEditable={true}
             placeholder="Balance"
-            value={1231231}
+            // value={1231231}
           />
           <button
             onClick={() => {
